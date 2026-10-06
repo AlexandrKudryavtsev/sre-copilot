@@ -1,2 +1,2 @@
-/** User persistence and authentication will be implemented in this module. */
+/** Current user identity; local development uses a single user until authentication is introduced. */
 package com.srecopilot.user;

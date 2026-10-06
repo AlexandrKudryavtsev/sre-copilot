@@ -2,7 +2,6 @@ package com.srecopilot.project;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.time.Instant;
 
@@ -14,9 +13,7 @@ public final class ProjectDtos {
     public record ProjectRequest(
             @NotBlank @Size(max = 255) String name,
             @Size(max = 2000) String description,
-            @NotBlank @Size(max = 2048)
-            @Pattern(regexp = "^https?://[^\\s]+$", message = "must be an HTTP or HTTPS URL")
-            String endpointUrl,
+            @NotBlank @Size(max = 2048) @HttpEndpoint String endpointUrl,
             @NotNull EndpointType endpointType) {
     }
 

@@ -10,8 +10,10 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
+import java.net.URI;
 import java.util.List;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -24,9 +26,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/projects")
 @Tag(name = "Projects")
-@ApiResponse(responseCode = "501", description = "Feature not implemented",
-        content = @Content(mediaType = "application/problem+json",
-                schema = @Schema(implementation = ProblemDetail.class)))
 public class ProjectController {
 
     private final ProjectService service;
@@ -37,24 +36,32 @@ public class ProjectController {
 
     @GetMapping
     @Operation(summary = "List projects")
+    @ApiResponse(responseCode = "200", description = "Projects belonging to the current local user")
     public List<ProjectResponse> list() {
         return service.list();
     }
 
     @PostMapping
     @Operation(summary = "Create project")
-    public ProjectResponse create(@Valid @RequestBody ProjectRequest request) {
-        return service.create(request);
+    @ApiResponse(responseCode = "201", description = "Project created")
+    public ResponseEntity<ProjectResponse> create(@Valid @RequestBody ProjectRequest request) {
+        ProjectResponse project = service.create(request);
+        return ResponseEntity.created(URI.create("/api/projects/" + project.id())).body(project);
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Get project")
+    @ApiResponse(responseCode = "200", description = "Project found")
+    @ApiResponse(responseCode = "404", description = "Project not found",
+            content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
     public ProjectResponse get(@PathVariable @Positive long id) {
         return service.get(id);
     }
 
     @PutMapping("/{id}")
     @Operation(summary = "Update project")
+    @ApiResponse(responseCode = "501", description = "Feature not implemented",
+            content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
     public ProjectResponse update(@PathVariable @Positive long id,
             @Valid @RequestBody ProjectRequest request) {
         return service.update(id, request);
@@ -62,24 +69,33 @@ public class ProjectController {
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Delete project")
+    @ApiResponse(responseCode = "501", description = "Feature not implemented",
+            content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
     public void delete(@PathVariable @Positive long id) {
         service.delete(id);
     }
 
     @PostMapping("/{id}/test-connection")
     @Operation(summary = "Test monitoring endpoint connection")
+    @ApiResponse(responseCode = "200", description = "Connection check completed; inspect connectionStatus")
+    @ApiResponse(responseCode = "404", description = "Project not found",
+            content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
     public ConnectionTestResponse testConnection(@PathVariable @Positive long id) {
         return service.testConnection(id);
     }
 
     @PostMapping("/{id}/monitoring/enable")
     @Operation(summary = "Enable monitoring")
+    @ApiResponse(responseCode = "501", description = "Feature not implemented",
+            content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
     public ProjectResponse enable(@PathVariable @Positive long id) {
         return service.setMonitoringEnabled(id, true);
     }
 
     @PostMapping("/{id}/monitoring/disable")
     @Operation(summary = "Disable monitoring")
+    @ApiResponse(responseCode = "501", description = "Feature not implemented",
+            content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
     public ProjectResponse disable(@PathVariable @Positive long id) {
         return service.setMonitoringEnabled(id, false);
     }

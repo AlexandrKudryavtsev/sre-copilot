@@ -1,5 +1,6 @@
 package com.srecopilot.common.exception;
 
+import com.srecopilot.project.ProjectNotFoundException;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.HttpHeaders;
@@ -15,6 +16,13 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 
 @RestControllerAdvice
 public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
+
+    @ExceptionHandler(ProjectNotFoundException.class)
+    ProblemDetail handleProjectNotFound(ProjectNotFoundException exception) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage());
+        problem.setTitle("Project not found");
+        return problem;
+    }
 
     @ExceptionHandler(FeatureNotImplementedException.class)
     ProblemDetail handleNotImplemented(FeatureNotImplementedException exception) {

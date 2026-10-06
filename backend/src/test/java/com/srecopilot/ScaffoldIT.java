@@ -47,7 +47,7 @@ class ScaffoldIT {
                 "monitoring_rules", "monitoring_rule_states", "incidents");
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM flyway_schema_history WHERE success = true", Integer.class))
-                .isEqualTo(1);
+                .isEqualTo(2);
         mvc.perform(get("/actuator/health"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("UP"));
@@ -58,14 +58,12 @@ class ScaffoldIT {
 
     @Test
     void businessApiReturnsAnExplicitProblemResponse() throws Exception {
-        mvc.perform(get("/api/projects"))
+        mvc.perform(get("/api/projects/1/metrics/current"))
                 .andExpect(status().isNotImplemented())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.status").value(501))
                 .andExpect(jsonPath("$.title").value("Feature not implemented"))
-                .andExpect(jsonPath("$.instance").value("/api/projects"));
-        mvc.perform(get("/api/projects/1/metrics/current"))
-                .andExpect(status().isNotImplemented());
+                .andExpect(jsonPath("$.instance").value("/api/projects/1/metrics/current"));
         mvc.perform(get("/api/projects/1/rules"))
                 .andExpect(status().isNotImplemented());
         mvc.perform(get("/api/projects/1/incidents").param("status", "OPEN"))
@@ -88,7 +86,7 @@ class ScaffoldIT {
                                 {"name":"Checkout API", "endpointUrl":"http://localhost:8081/actuator/prometheus",
                                  "endpointType":"ACTUATOR"}
                                 """))
-                .andExpect(status().isNotImplemented());
+                .andExpect(status().isCreated());
         mvc.perform(get("/api/projects/0"))
                 .andExpect(status().isBadRequest());
         mvc.perform(get("/api/projects/1/metrics/history").param("from", "invalid").param("to", "invalid"))

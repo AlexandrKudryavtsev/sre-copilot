@@ -1,7 +1,9 @@
 # SRE Copilot — Monitoring Core
 
-Каркас backend для [ТЗ](docs/TASK_WITHOUT_AI.md): Java 21, Spring Boot 4.1.1, Maven,
+Backend для [ТЗ](docs/TASK_WITHOUT_AI.md): Java 21, Spring Boot 4.1.1, Maven,
 PostgreSQL 17, Spring Data JPA, Flyway и Swagger/OpenAPI.
+Реализованы создание проектов, чтение списка/одного проекта и проверка подключения
+к Prometheus/Actuator endpoint.
 
 ## Запуск через Docker Compose
 
@@ -56,7 +58,9 @@ Spring Boot при локальном запуске не загружает к�
 
 Интеграционные тесты поднимают отдельный PostgreSQL через Testcontainers;
 нужен работающий Docker. Они проверяют запуск приложения, миграции, подключение к БД,
-health/readiness, API-заглушки, валидацию, Swagger и CORS.
+health/readiness, API-заглушки, валидацию, Swagger и CORS. Сценарии проекта проверяют
+сохранение в PostgreSQL, HTTP-запросы к локальному серверу, ошибки, таймауты и восстановление
+статуса подключения. Отдельные unit-тесты проверяют синтаксис Prometheus samples.
 `./mvnw package` собирает JAR без запуска интеграционных тестов.
 
 ## Структура
@@ -70,12 +74,12 @@ backend/
     SreCopilotApplication
     common/config/          CORS, OpenAPI
     common/exception/       ProblemDetail, обработка ошибок
-    user/                   место для пользователей и аутентификации
-    project/                controller, service, DTO, enums
+    user/                   текущий локальный пользователь
+    project/                entity, repository, controller, service, DTO, validation
     metric/                 controller, service, DTO, enums
     rule/                   controller, service, DTO, enums
     incident/               controller, service, DTO, enums
-    monitoring/             настройки; место для scheduler/client/calculator
+    monitoring/             HTTP client, проверка формата метрик, настройки
   src/main/resources/
     application.yaml
     db/migration/           Flyway SQL
@@ -90,31 +94,50 @@ docs/TASK_WITHOUT_AI.md
 индексы для истории метрик/инцидентов и ограничение одного открытого Incident на Rule.
 ID — `BIGINT`, время — `TIMESTAMPTZ`, длительность проверки правила — целые секунды.
 Изменения схемы добавляются отдельными миграциями. Hibernate настроен на `validate`,
-автоматическое создание таблиц отключено. JPA-сущности и репозитории будут добавляться
-при реализации соответствующих модулей.
+автоматическое создание таблиц отключено. Модуль проектов использует JPA-сущность и repository.
+Вторая миграция добавляет пользователя `local@srecopilot.test`: он является владельцем
+всех проектов, создаваемых через API на этом этапе. Аутентификация будет добавлена позже;
+вместо пароля у локального пользователя записан маркер отключённого входа.
 
-## API-заглушки
+## API
 
-Контроллеры и сервисы имеют типизированные контракты. Корректные запросы к бизнес-API
-возвращают `501 Not Implemented` и `application/problem+json`; ошибочные — `400`.
-CRUD, сбор метрик, Rule Engine и аутентификация ещё не реализованы.
-Проверка подключения к endpoint и переключатели мониторинга также являются заглушками.
+Создание проекта возвращает `201 Created`, тело проекта и заголовок `Location`.
+При создании `connectionStatus = UNKNOWN`, `monitoringEnabled = false`; HTTP-запрос
+к endpoint выполняется отдельной операцией `test-connection`.
 
-| Метод | Путь |
-|---|---|
-| GET, POST | `/api/projects` |
-| GET, PUT, DELETE | `/api/projects/{id}` |
-| POST | `/api/projects/{id}/test-connection` |
-| POST | `/api/projects/{id}/monitoring/enable` |
-| POST | `/api/projects/{id}/monitoring/disable` |
-| GET | `/api/projects/{projectId}/metrics/current` |
-| GET | `/api/projects/{projectId}/metrics/history?from=...&to=...` |
-| GET, POST | `/api/projects/{projectId}/rules` |
-| GET, PUT, DELETE | `/api/projects/{projectId}/rules/{ruleId}` |
-| POST | `/api/projects/{projectId}/rules/{ruleId}/enable` |
-| POST | `/api/projects/{projectId}/rules/{ruleId}/disable` |
-| GET | `/api/projects/{projectId}/incidents?status=OPEN&severity=CRITICAL` |
-| GET | `/api/incidents/{incidentId}` |
+Проверка соединения возвращает `200 OK` с `connectionStatus` и диагностическим `message`.
+Статус `CONNECTED` означает HTTP 200 с валидными текстовыми Prometheus samples.
+При HTTP-ошибке, недоступности, таймауте или неподходящем ответе статус — `UNAVAILABLE`.
+Результат сохраняется в проекте, обновляя `updatedAt`. Повторная успешная проверка
+восстанавливает `CONNECTED`. Проверка не создаёт `MetricSnapshot` и не включает мониторинг.
+
+Проверяются HTTP(S) URL, заголовок `Content-Type: text/plain`, UTF-8 и синтаксис samples
+в [Prometheus text format](https://prometheus.io/docs/instrumenting/exposition_formats/#prometheus-text-format).
+Как минимум один sample должен присутствовать. Клиент запрашивает формат 0.0.4;
+OpenMetrics/protobuf и проверка наличия исходных метрик для четырёх Golden Signals
+относятся к последующим этапам. Redirects не выполняются. Лимит ответа по умолчанию — 2 MiB;
+timeout охватывает весь запрос, включая чтение тела. Сетевой запрос выполняется вне транзакции БД.
+
+Несуществующий проект возвращает `404`; неверный запрос — `400` с `application/problem+json`.
+Чтение и проверка ограничены проектами текущего локального пользователя.
+Остальные бизнес-операции возвращают `501 Not Implemented`. Изменение/удаление проекта,
+сбор метрик, переключатели мониторинга, Rule Engine и аутентификация ещё не реализованы.
+
+| Метод | Путь | Состояние |
+|---|---|---|
+| GET, POST | `/api/projects` | Реализованы |
+| GET, PUT, DELETE | `/api/projects/{id}` | GET реализован; PUT/DELETE — 501 |
+| POST | `/api/projects/{id}/test-connection` | Реализован |
+| POST | `/api/projects/{id}/monitoring/enable` | 501 |
+| POST | `/api/projects/{id}/monitoring/disable` | 501 |
+| GET | `/api/projects/{projectId}/metrics/current` | 501 |
+| GET | `/api/projects/{projectId}/metrics/history?from=...&to=...` | 501 |
+| GET, POST | `/api/projects/{projectId}/rules` | 501 |
+| GET, PUT, DELETE | `/api/projects/{projectId}/rules/{ruleId}` | 501 |
+| POST | `/api/projects/{projectId}/rules/{ruleId}/enable` | 501 |
+| POST | `/api/projects/{projectId}/rules/{ruleId}/disable` | 501 |
+| GET | `/api/projects/{projectId}/incidents?status=OPEN&severity=CRITICAL` | 501 |
+| GET | `/api/incidents/{incidentId}` | 501 |
 
 `from` и `to` — обязательные ISO-8601 timestamps, например `2026-10-06T13:00:00Z`.
 Параметры `status` и `severity` необязательные. Поле `checkIntervalSeconds`
@@ -124,8 +147,19 @@ CRUD, сбор метрик, Rule Engine и аутентификация ещё 
 curl -i http://localhost:8080/api/projects
 curl -i -X POST http://localhost:8080/api/projects \
   -H 'Content-Type: application/json' \
-  -d '{"name":"Checkout API","endpointUrl":"http://localhost:8081/actuator/prometheus","endpointType":"ACTUATOR"}'
+  -d '{"name":"Checkout API","endpointUrl":"http://host.docker.internal:8081/actuator/prometheus","endpointType":"ACTUATOR"}'
 ```
+
+Используйте `id` из ответа при проверке и чтении, например для `id = 1`:
+
+```sh
+curl -i -X POST http://localhost:8080/api/projects/1/test-connection
+curl -i http://localhost:8080/api/projects/1
+```
+
+В Docker Desktop `host.docker.internal` адресует сервис на хосте. При локальном
+запуске backend используйте `localhost:8081`; для сервиса в той же Docker-сети — его DNS-имя.
+Endpoint должен отдавать метрики, например `/actuator/prometheus`, а не JSON `/actuator/health`.
 
 ## Настройки
 
@@ -137,7 +171,8 @@ curl -i -X POST http://localhost:8080/api/projects \
 | `SERVER_PORT` | `8080` | Порт приложения |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:5173,http://localhost:3000` | Разрешённые origins frontend |
 | `MONITORING_COLLECTION_INTERVAL` | `30s` | Будущий интервал сбора |
-| `MONITORING_REQUEST_TIMEOUT` | `5s` | Будущий timeout запросов к endpoint |
+| `MONITORING_REQUEST_TIMEOUT` | `5s` | Timeout проверки endpoint, включая тело ответа |
+| `MONITORING_MAX_RESPONSE_BYTES` | `2097152` | Максимальный размер ответа endpoint в байтах |
 | `MONITORING_RECOVERY_CHECKS` | `3` | Будущее число последовательных восстановлений |
 
 Настройки мониторинга типизированы и валидируются при запуске;

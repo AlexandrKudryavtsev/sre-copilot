@@ -11,5 +11,6 @@ import org.springframework.validation.annotation.Validated;
 public record MonitoringProperties(
         @DurationMin(seconds = 1) Duration collectionInterval,
         @DurationMin(millis = 1) Duration requestTimeout,
-        @Min(1) int recoveryChecks) {
+        @Min(1) int recoveryChecks,
+        @Min(1) int maxResponseBytes) {
 }
