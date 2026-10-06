@@ -47,7 +47,7 @@ class ScaffoldIT {
                 "monitoring_rules", "monitoring_rule_states", "incidents");
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM flyway_schema_history WHERE success = true", Integer.class))
-                .isEqualTo(2);
+                .isEqualTo(3);
         mvc.perform(get("/actuator/health"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("UP"));
@@ -58,14 +58,12 @@ class ScaffoldIT {
 
     @Test
     void businessApiReturnsAnExplicitProblemResponse() throws Exception {
-        mvc.perform(get("/api/projects/1/metrics/current"))
+        mvc.perform(get("/api/projects/1/rules"))
                 .andExpect(status().isNotImplemented())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.status").value(501))
                 .andExpect(jsonPath("$.title").value("Feature not implemented"))
-                .andExpect(jsonPath("$.instance").value("/api/projects/1/metrics/current"));
-        mvc.perform(get("/api/projects/1/rules"))
-                .andExpect(status().isNotImplemented());
+                .andExpect(jsonPath("$.instance").value("/api/projects/1/rules"));
         mvc.perform(get("/api/projects/1/incidents").param("status", "OPEN"))
                 .andExpect(status().isNotImplemented());
     }

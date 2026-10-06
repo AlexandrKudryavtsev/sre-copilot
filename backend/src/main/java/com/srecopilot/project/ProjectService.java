@@ -64,8 +64,12 @@ public class ProjectService {
         return new ConnectionTestResponse(status, probe.message());
     }
 
+    @Transactional
     public ProjectResponse setMonitoringEnabled(long id, boolean enabled) {
-        throw new FeatureNotImplementedException("Set monitoring enabled");
+        Project project = repository.findOwnedByIdForUpdate(id, currentUser.userId())
+                .orElseThrow(() -> new ProjectNotFoundException(id));
+        project.setMonitoringEnabled(enabled);
+        return toResponse(project);
     }
 
     private Project requireProject(long id, long userId) {

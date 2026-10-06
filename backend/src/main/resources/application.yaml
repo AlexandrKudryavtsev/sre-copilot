@@ -46,6 +46,7 @@ app:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
 
 monitoring:
+  scheduler-enabled: ${MONITORING_SCHEDULER_ENABLED:true}
   collection-interval: ${MONITORING_COLLECTION_INTERVAL:30s}
   request-timeout: ${MONITORING_REQUEST_TIMEOUT:5s}
   recovery-checks: ${MONITORING_RECOVERY_CHECKS:3}

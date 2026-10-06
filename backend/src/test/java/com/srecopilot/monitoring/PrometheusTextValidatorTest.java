@@ -1,9 +1,11 @@
 package com.srecopilot.monitoring;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class PrometheusTextValidatorTest {
@@ -33,9 +35,18 @@ class PrometheusTextValidatorTest {
             "sample{key=\"unterminated} 1\n", "sample{key=not-quoted} 1\n",
             "sample{key=\"a\",key=\"b\"} 1\n", "sample{key=\"bad\\t\"} 1\n",
             "sample 1 extra tokens\n", "sample 1 9223372036854775808\n",
-            "sample{key=\"a\",,} 1\n", "sample{}1\n", "sample 1e9999\n"
+            "sample{key=\"a\",,} 1\n", "sample{}1\n", "sample 1e9999\n",
+            "sample{a=\"1\",b=\"2\"} 1\nsample{b=\"2\",a=\"1\"} 2\n"
     })
     void rejectsEmptyOrMalformedExposition(String text) {
         assertThatThrownBy(() -> validator.validate(text)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void decodesLabelsAndPreservesNumericValues() {
+        var sample = validator.parse("sample{value=\"escaped\\\"quote\\nline\\\\slash\"} 1.2e3 123\n").getFirst();
+        assertThat(sample.name()).isEqualTo("sample");
+        assertThat(sample.labels()).containsEntry("value", "escaped\"quote\nline\\slash");
+        assertThat(sample.value()).isEqualTo("1.2e3");
     }
 }

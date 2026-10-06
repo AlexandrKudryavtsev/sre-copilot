@@ -86,7 +86,8 @@ public class ProjectController {
 
     @PostMapping("/{id}/monitoring/enable")
     @Operation(summary = "Enable monitoring")
-    @ApiResponse(responseCode = "501", description = "Feature not implemented",
+    @ApiResponse(responseCode = "200", description = "Monitoring enabled; collection starts on the next cycle")
+    @ApiResponse(responseCode = "404", description = "Project not found",
             content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
     public ProjectResponse enable(@PathVariable @Positive long id) {
         return service.setMonitoringEnabled(id, true);
@@ -94,7 +95,8 @@ public class ProjectController {
 
     @PostMapping("/{id}/monitoring/disable")
     @Operation(summary = "Disable monitoring")
-    @ApiResponse(responseCode = "501", description = "Feature not implemented",
+    @ApiResponse(responseCode = "200", description = "Monitoring disabled; previous snapshots are retained")
+    @ApiResponse(responseCode = "404", description = "Project not found",
             content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
     public ProjectResponse disable(@PathVariable @Positive long id) {
         return service.setMonitoringEnabled(id, false);

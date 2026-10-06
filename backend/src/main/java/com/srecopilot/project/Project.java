@@ -38,6 +38,9 @@ public class Project {
     @Column(nullable = false)
     private boolean monitoringEnabled;
 
+    @Column(nullable = false)
+    private long monitoringRevision;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
     private ConnectionStatus connectionStatus;
@@ -93,6 +96,23 @@ public class Project {
 
     public boolean isMonitoringEnabled() {
         return monitoringEnabled;
+    }
+
+    public long getMonitoringRevision() {
+        return monitoringRevision;
+    }
+
+    public void setMonitoringEnabled(boolean enabled) {
+        if (monitoringEnabled != enabled) {
+            monitoringEnabled = enabled;
+            monitoringRevision++;
+            updatedAt = Instant.now();
+        }
+    }
+
+    public void recordConnectionStatus(ConnectionStatus status, Instant checkedAt) {
+        connectionStatus = status;
+        updatedAt = checkedAt;
     }
 
     public ConnectionStatus getConnectionStatus() {

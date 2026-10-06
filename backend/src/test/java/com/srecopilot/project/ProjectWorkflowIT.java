@@ -39,6 +39,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
         "monitoring.request-timeout=700ms",
         "monitoring.max-response-bytes=1024",
         "spring.datasource.hikari.maximum-pool-size=1",
+        "monitoring.scheduler-enabled=false",
         "debug=false"
 })
 @AutoConfigureMockMvc

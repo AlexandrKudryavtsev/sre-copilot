@@ -1,5 +1,4 @@
 /**
- * Prometheus endpoint connection checks and settings.
- * Scheduler, metric collection and Golden Signals calculation will be added here.
+ * Scheduled Prometheus collection, Golden Signals calculation and connection checks.
  */
 package com.srecopilot.monitoring;

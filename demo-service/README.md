@@ -65,7 +65,7 @@ curl -X POST http://localhost:8081/scenario \
 Экспортируются накопительные `_count`, `_sum` и `_bucket`, а также gauge `process_cpu_usage`
 в диапазоне 0–1 и `demo_uptime_seconds`.
 
-Для будущего адаптера можно использовать два последовательных опроса:
+Адаптер backend использует два последовательных опроса:
 
 - Traffic: сумма приростов `_count` / время между опросами в секундах.
 - Latency: сумма приростов `_sum` / сумма приростов `_count` × 1000 мс.
@@ -74,7 +74,8 @@ curl -X POST http://localhost:8081/scenario \
 
 Счётчики сохраняются при смене сценария и обнуляются при перезапуске приложения.
 Сразу после переключения расчёт по интервалу может включать оба сценария.
-Для rates нужны два опроса; если прироста запросов нет, latency/errors не определены.
+Для rates нужны два опроса; если прироста запросов нет, backend сохраняет latency/errors
+как 0, что обозначает отсутствие наблюдений.
 После перезапуска предыдущие значения счётчиков нельзя использовать как обычный прирост.
 
 Формат histogram соответствует [Prometheus exposition format](https://prometheus.io/docs/instrumenting/exposition_formats/).
@@ -95,5 +96,7 @@ curl -X POST http://localhost:8080/api/projects/<id>/test-connection
 Если backend в Docker, а генератор запущен на хосте, запустите его с `--host 0.0.0.0`
 и используйте `http://host.docker.internal:8081/metrics`.
 
-Сейчас backend проверяет подключение; периодический сбор метрик и Rule Engine
-будут реализованы отдельно.
+Включите периодический сбор через `POST /api/projects/{id}/monitoring/enable`.
+После двух опросов snapshot доступен по `GET /api/projects/{id}/metrics/current`,
+история — по `GET /api/projects/{id}/metrics/history?from=...&to=...`.
+Rule Engine будет реализован отдельно.

@@ -10,6 +10,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
@@ -26,15 +27,26 @@ public class PrometheusClient {
     private final HttpClient client;
     private final MonitoringProperties properties;
     private final PrometheusTextValidator validator;
+    private final Clock clock;
 
     public PrometheusClient(HttpClient prometheusHttpClient, MonitoringProperties properties,
-            PrometheusTextValidator validator) {
+            PrometheusTextValidator validator, Clock clock) {
         this.client = prometheusHttpClient;
         this.properties = properties;
         this.validator = validator;
+        this.clock = clock;
     }
 
     public ConnectionProbeResult testConnection(String endpointUrl) {
+        try {
+            fetch(endpointUrl);
+            return ConnectionProbeResult.available();
+        } catch (MetricCollectionException exception) {
+            return ConnectionProbeResult.unavailable(exception.getMessage());
+        }
+    }
+
+    public PrometheusScrape fetch(String endpointUrl) {
         HttpRequest request = HttpRequest.newBuilder(URI.create(endpointUrl))
                 .timeout(properties.requestTimeout())
                 .header("Accept", "text/plain;version=0.0.4;charset=utf-8;escaping=underscores")
@@ -46,40 +58,39 @@ public class PrometheusClient {
             // Covers the entire response, including a body that stalls after headers arrive.
             HttpResponse<byte[]> response = future.get(properties.requestTimeout().toMillis(), TimeUnit.MILLISECONDS);
             if (response.statusCode() != 200) {
-                return ConnectionProbeResult.unavailable("Endpoint returned HTTP " + response.statusCode() + ".");
+                throw new MetricCollectionException("Endpoint returned HTTP " + response.statusCode() + ".");
             }
             String contentType = response.headers().firstValue("Content-Type").orElse("")
                     .split(";", 2)[0].strip().toLowerCase(Locale.ROOT);
             if (!"text/plain".equals(contentType)) {
-                return ConnectionProbeResult.unavailable("Endpoint must return Prometheus text metrics (text/plain).");
+                throw new MetricCollectionException("Endpoint must return Prometheus text metrics (text/plain).");
             }
             String body = StandardCharsets.UTF_8.newDecoder()
                     .onMalformedInput(CodingErrorAction.REPORT)
                     .onUnmappableCharacter(CodingErrorAction.REPORT)
                     .decode(ByteBuffer.wrap(response.body())).toString();
-            validator.validate(body);
-            return ConnectionProbeResult.available();
+            return new PrometheusScrape(clock.instant(), validator.parse(body));
         } catch (TimeoutException exception) {
             future.cancel(true);
-            return ConnectionProbeResult.unavailable("Endpoint request timed out.");
+            throw new MetricCollectionException("Endpoint request timed out.");
         } catch (InterruptedException exception) {
             future.cancel(true);
             Thread.currentThread().interrupt();
-            return ConnectionProbeResult.unavailable("Endpoint request was interrupted.");
+            throw new MetricCollectionException("Endpoint request was interrupted.");
         } catch (ExecutionException exception) {
             for (Throwable cause = exception.getCause(); cause != null; cause = cause.getCause()) {
                 if (cause instanceof ResponseTooLargeException) {
-                    return ConnectionProbeResult.unavailable("Endpoint response exceeds the configured size limit.");
+                    throw new MetricCollectionException("Endpoint response exceeds the configured size limit.");
                 }
                 if (cause instanceof HttpTimeoutException) {
-                    return ConnectionProbeResult.unavailable("Endpoint request timed out.");
+                    throw new MetricCollectionException("Endpoint request timed out.");
                 }
             }
-            return ConnectionProbeResult.unavailable("Unable to connect to the monitoring endpoint.");
+            throw new MetricCollectionException("Unable to connect to the monitoring endpoint.");
         } catch (CharacterCodingException exception) {
-            return ConnectionProbeResult.unavailable("Endpoint metrics must be UTF-8 text.");
+            throw new MetricCollectionException("Endpoint metrics must be UTF-8 text.");
         } catch (IllegalArgumentException exception) {
-            return ConnectionProbeResult.unavailable(exception.getMessage());
+            throw new MetricCollectionException(exception.getMessage());
         }
     }
 
