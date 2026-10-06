@@ -1,6 +1,20 @@
 name: sre-copilot
 
 services:
+  demo-service:
+    build:
+      context: ./demo-service
+    environment:
+      DEMO_SCENARIO: ${DEMO_SCENARIO:-normal}
+    ports:
+      - "127.0.0.1:${DEMO_SERVICE_PORT:-8081}:8081"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8081/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
   postgres:
     image: postgres:17-alpine
     environment:

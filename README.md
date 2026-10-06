@@ -20,6 +20,7 @@ docker compose up --build -d --wait
 - Health: <http://localhost:8080/actuator/health>
 - Readiness, включая БД: <http://localhost:8080/actuator/health/readiness>
 - PostgreSQL: `localhost:5432`, БД и пользователь `sre_copilot`.
+- Генератор тестовых метрик: <http://localhost:8081/metrics>.
 
 Порты и параметры задаются в `.env`; пример содержит настройки для локальной разработки.
 
@@ -29,6 +30,26 @@ docker compose down
 ```
 
 `down` сохраняет БД в Docker volume. `docker compose down -v` удаляет данные.
+
+## Тестовый сервис для мониторинга
+
+Рядом с backend находится [demo-service](demo-service/README.md): приложение на Python
+без внешних зависимостей, генерирующее Prometheus-метрики. Оно входит в Compose;
+отдельный запуск: `docker compose up --build -d --wait demo-service`.
+
+Для проекта укажите `endpointType = PROMETHEUS` и `endpointUrl = http://demo-service:8081/metrics`
+при запуске backend в Compose, либо `http://localhost:8081/metrics` при локальном запуске backend.
+Также доступен `/actuator/prometheus` для типа `ACTUATOR`.
+Сценарии `normal`, `slow`, `errors`, `overloaded`, `unavailable` переключаются без перезапуска:
+
+```sh
+curl -X POST http://localhost:8081/scenario \
+  -H 'Content-Type: application/json' -d '{"name":"slow"}'
+```
+
+Счётчики запросов и длительностей накапливаются со временем; CPU выдаётся как gauge.
+`unavailable` возвращает HTTP 503 на endpoint метрик, а `normal` восстанавливает его.
+Backend сейчас поддерживает ручную проверку подключения; периодический сбор ещё предстоит реализовать.
 
 ## Локальный запуск backend
 
@@ -85,6 +106,7 @@ backend/
     db/migration/           Flyway SQL
   src/test/java/            интеграционные проверки
 compose.yaml
+demo-service/               генератор метрик, сценарии нагрузки/ошибок, Dockerfile
 .env.example
 docs/TASK_WITHOUT_AI.md
 ```
@@ -169,6 +191,8 @@ Endpoint должен отдавать метрики, например `/actuat
 | `DB_USERNAME` | `sre_copilot` | Пользователь БД |
 | `DB_PASSWORD` | `sre_copilot_dev` | Пароль БД |
 | `SERVER_PORT` | `8080` | Порт приложения |
+| `DEMO_SERVICE_PORT` | `8081` | Внешний порт тестового сервиса в Compose |
+| `DEMO_SCENARIO` | `normal` | Начальный сценарий тестового сервиса |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:5173,http://localhost:3000` | Разрешённые origins frontend |
 | `MONITORING_COLLECTION_INTERVAL` | `30s` | Будущий интервал сбора |
 | `MONITORING_REQUEST_TIMEOUT` | `5s` | Timeout проверки endpoint, включая тело ответа |
