@@ -151,3 +151,45 @@ test('navigation cancellation is preserved rather than shown as a backend failur
     (error) => error.name === 'AbortError',
   );
 });
+
+test('AI analysis GET and retry POST use backend incident endpoints with cancellation', async () => {
+  const controller = new AbortController();
+  const calls = [];
+  mock.method(globalThis, 'fetch', async (url, options) => {
+    calls.push({ url, method: options.method, signal: options.signal });
+    return Response.json(
+      { id: 8, incidentId: 12, status: 'PENDING' },
+      { status: options.method === 'POST' ? 202 : 200 },
+    );
+  });
+  assert.equal((await api.aiAnalysis(12, controller.signal)).status, 'PENDING');
+  assert.equal(
+    (await api.retryAiAnalysis(12, controller.signal)).status,
+    'PENDING',
+  );
+  assert.deepEqual(
+    calls.map(({ url, method }) => [url, method]),
+    [
+      ['/api/incidents/12/ai-analysis', undefined],
+      ['/api/incidents/12/ai-analysis/retry', 'POST'],
+    ],
+  );
+  controller.abort();
+  assert.ok(calls.every((call) => call.signal.aborted));
+});
+
+test('AI analysis GET treats 404 as no analysis while retry and other errors remain errors', async () => {
+  mock.method(globalThis, 'fetch', async () =>
+    Response.json({ detail: 'AI analysis not found.' }, { status: 404 }),
+  );
+  assert.equal(await api.aiAnalysis(12), null);
+  await assert.rejects(
+    api.retryAiAnalysis(12),
+    (error) => error.status === 404,
+  );
+  mock.restoreAll();
+  mock.method(globalThis, 'fetch', async () =>
+    Response.json({ detail: 'Database unavailable.' }, { status: 503 }),
+  );
+  await assert.rejects(api.aiAnalysis(12), (error) => error.status === 503);
+});

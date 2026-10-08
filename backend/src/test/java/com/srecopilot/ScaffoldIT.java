@@ -45,10 +45,10 @@ class ScaffoldIT {
                 "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'",
                 String.class));
         assertThat(tables).contains("users", "projects", "metric_snapshots",
-                "monitoring_rules", "monitoring_rule_states", "incidents");
+                "monitoring_rules", "monitoring_rule_states", "incidents", "ai_analyses");
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM flyway_schema_history WHERE success = true", Integer.class))
-                .isEqualTo(4);
+                .isEqualTo(5);
         mvc.perform(get("/actuator/health"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("UP"));
@@ -98,7 +98,9 @@ class ScaffoldIT {
                 .andExpect(jsonPath("$.paths['/api/projects']").exists())
                 .andExpect(jsonPath("$.paths['/api/projects/{id}'].put.responses['200']").exists())
                 .andExpect(jsonPath("$.paths['/api/projects/{id}'].delete.responses['204']").exists())
-                .andExpect(jsonPath("$.paths['/api/projects/{projectId}/rules']").exists());
+                .andExpect(jsonPath("$.paths['/api/projects/{projectId}/rules']").exists())
+                .andExpect(jsonPath("$.paths['/api/incidents/{incidentId}/ai-analysis']").exists())
+                .andExpect(jsonPath("$.paths['/api/incidents/{incidentId}/ai-analysis/retry']").exists());
         mvc.perform(get("/swagger-ui/index.html"))
                 .andExpect(status().isOk());
         mvc.perform(options("/api/projects")

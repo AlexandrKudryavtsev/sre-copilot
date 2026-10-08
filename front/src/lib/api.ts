@@ -1,4 +1,5 @@
 import type {
+  AiAnalysis,
   ConnectionStatus,
   Incident,
   Project,
@@ -119,6 +120,22 @@ export const api = {
     ),
   incidents: (id: number, signal?: AbortSignal) =>
     request<Incident[]>(`/projects/${id}/incidents`, { signal }),
+  aiAnalysis: async (id: number, signal?: AbortSignal) => {
+    try {
+      return await request<AiAnalysis>(`/incidents/${id}/ai-analysis`, {
+        signal,
+      });
+    } catch (error) {
+      // IncidentDetails already loaded the incident; older incidents can have no analysis.
+      if (error instanceof ApiError && error.status === 404) return null;
+      throw error;
+    }
+  },
+  retryAiAnalysis: (id: number, signal?: AbortSignal) =>
+    request<AiAnalysis>(`/incidents/${id}/ai-analysis/retry`, {
+      method: 'POST',
+      signal,
+    }),
   incident: (id: number, signal?: AbortSignal) =>
     request<Incident>(`/incidents/${id}`, { signal }),
 };

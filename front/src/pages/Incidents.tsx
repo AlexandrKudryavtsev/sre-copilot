@@ -11,6 +11,7 @@ import {
 } from '../lib/signals';
 import { useResource } from '../hooks/useResource';
 import { Badge, ErrorNotice, Loading } from '../components/Feedback';
+import { AiAnalysisPanel } from '../components/AiAnalysisPanel';
 import { IncidentTable } from '../components/IncidentTable';
 import { SignalChart } from '../components/SignalChart';
 import type { Rule } from '../lib/types';
@@ -196,6 +197,7 @@ export function IncidentDetails({ incidentId }: { incidentId: number }) {
           Rule-based detection
         </span>
       </div>
+      <AiAnalysisPanel key={value.id} incidentId={value.id} />
       <section className="panel">
         <div className="panel-heading">
           <div>

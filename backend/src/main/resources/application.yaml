@@ -57,3 +57,15 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
     operations-sorter: method
+
+ai:
+  token: ${OPENAI_TOKEN:}
+  model: ${OPENAI_MODEL:gpt-4o-mini}
+  base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+  request-timeout: ${AI_REQUEST_TIMEOUT:30s}
+  poll-interval: ${AI_POLL_INTERVAL:1s}
+  history-window: ${AI_HISTORY_WINDOW:30m}
+  max-history-points: ${AI_MAX_HISTORY_POINTS:120}
+  max-output-tokens: ${OPENAI_MAX_OUTPUT_TOKENS:2000}
+  max-response-bytes: ${AI_MAX_RESPONSE_BYTES:1048576}
+  scheduler-enabled: ${AI_SCHEDULER_ENABLED:true}

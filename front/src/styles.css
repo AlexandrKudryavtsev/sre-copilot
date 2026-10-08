@@ -449,3 +449,133 @@
     margin-left: 0;
   }
 }
+
+.ai-analysis-panel {
+  overflow: hidden;
+}
+.ai-analysis-heading {
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.ai-analysis-title,
+.ai-analysis-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ai-analysis-controls {
+  flex-wrap: wrap;
+}
+.ai-analysis-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 9px;
+  background: var(--secondary);
+  color: var(--primary);
+}
+.ai-analysis-body {
+  padding: 24px;
+}
+.ai-analysis-body .error-notice:last-child {
+  margin-bottom: 0;
+}
+.ai-analysis-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 8px;
+  background: var(--muted);
+  color: var(--muted-foreground);
+}
+.ai-analysis-message > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.ai-analysis-message strong {
+  color: var(--foreground);
+  font-size: 13px;
+}
+.ai-analysis-message p {
+  margin-top: 6px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.ai-analysis-failed {
+  background: #fff5f3;
+  color: #994d45;
+}
+.ai-analysis-insufficient {
+  background: #fcf8ed;
+  color: #8c733e;
+  margin-bottom: 24px;
+}
+.ai-analysis-result h3 {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+.ai-analysis-cause {
+  padding: 18px 20px;
+  border-left: 3px solid var(--primary);
+  border-radius: 0 8px 8px 0;
+  background: #f4f8f5;
+  margin-bottom: 24px;
+}
+.ai-analysis-cause p,
+.ai-analysis-columns li {
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.ai-analysis-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 32px;
+}
+.ai-analysis-columns ul,
+.ai-analysis-columns ol {
+  padding-left: 20px;
+  color: #58675e;
+}
+.ai-analysis-columns ul {
+  list-style: disc;
+}
+.ai-analysis-columns ol {
+  list-style: decimal;
+}
+.ai-analysis-columns li + li {
+  margin-top: 10px;
+}
+.ai-analysis-columns li::marker {
+  color: var(--primary);
+}
+.ai-analysis-empty {
+  color: var(--muted-foreground);
+  line-height: 1.7;
+}
+.ai-analysis-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 10px;
+  border-top: 1px solid var(--border);
+  padding: 15px 24px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  line-height: 1.6;
+}
+@media (max-width: 650px) {
+  .ai-analysis-columns {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+  .ai-analysis-body {
+    padding: 18px;
+  }
+  .ai-analysis-footer {
+    padding: 15px 18px;
+  }
+}

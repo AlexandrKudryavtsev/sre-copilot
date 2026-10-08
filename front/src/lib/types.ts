@@ -74,3 +74,20 @@ export interface Incident {
   errorsAtDetection: number;
   saturationAtDetection: number;
 }
+
+export type AiAnalysisStatus =
+  | 'PENDING'
+  | 'COMPLETED'
+  | 'FAILED'
+  | 'INSUFFICIENT_DATA';
+export interface AiAnalysis {
+  id: number;
+  incidentId: number;
+  status: AiAnalysisStatus;
+  probableCause: string | null;
+  evidence: string[];
+  recommendations: string[];
+  errorMessage: string | null;
+  createdAt: string;
+  completedAt: string | null;
+}
