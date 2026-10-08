@@ -1,6 +1,21 @@
 name: sre-copilot
 
 services:
+  frontend:
+    build:
+      context: ./front
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-5173}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
   demo-service:
     build:
       context: ./demo-service

@@ -6,6 +6,13 @@ PostgreSQL 17, Spring Data JPA, Flyway и Swagger/OpenAPI.
 периодический сбор Prometheus/Actuator-метрик, правила и автоматическое открытие/закрытие
 инцидентов. API возвращает текущие метрики, историю, правила и контекст инцидентов.
 
+В [front](front/README.md) реализован frontend на React/TypeScript: управление проектами,
+Overview с реальными Golden Signals и историей, просмотр списка и деталей инцидентов,
+создание/редактирование правил, включение/отключение и удаление с сохранением истории.
+Rules показывает прогресс проверок и открытый инцидент; правила доступны из sidebar проекта.
+Полный сценарий открытия и восстановления на настоящем Actuator-сервисе проверен;
+результаты — в [отчёте приёмки](docs/ACCEPTANCE_REPORT.md).
+
 ## Запуск через Docker Compose
 
 Нужен Docker с Compose. Java и Maven на хосте не требуются.
@@ -16,6 +23,7 @@ docker compose up --build -d --wait
 ```
 
 - Backend: <http://localhost:8080>
+- Frontend: <http://localhost:5173>
 - Swagger UI: <http://localhost:8080/swagger-ui.html>
 - OpenAPI JSON: <http://localhost:8080/v3/api-docs>
 - Health: <http://localhost:8080/actuator/health>
@@ -115,6 +123,7 @@ backend/
     db/migration/           Flyway SQL
   src/test/java/            интеграционные проверки
 compose.yaml
+front/                      React + Vite, frontend, Nginx, Dockerfile
 demo-service/               генератор метрик, сценарии нагрузки/ошибок, Dockerfile
 .env.example
 docs/TASK_WITHOUT_AI.md

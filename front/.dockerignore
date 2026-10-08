@@ -1,0 +1,11 @@
+node_modules
+dist
+.next
+.vinext
+.wrangler
+.openai
+prototype
+tests
+.env*
+*.tsbuildinfo
+.DS_Store
