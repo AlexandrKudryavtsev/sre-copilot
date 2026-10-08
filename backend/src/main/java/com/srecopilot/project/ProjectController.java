@@ -60,7 +60,8 @@ public class ProjectController {
 
     @PutMapping("/{id}")
     @Operation(summary = "Update project")
-    @ApiResponse(responseCode = "501", description = "Feature not implemented",
+    @ApiResponse(responseCode = "200", description = "Project updated")
+    @ApiResponse(responseCode = "404", description = "Project not found",
             content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
     public ProjectResponse update(@PathVariable @Positive long id,
             @Valid @RequestBody ProjectRequest request) {
@@ -69,15 +70,19 @@ public class ProjectController {
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Delete project")
-    @ApiResponse(responseCode = "501", description = "Feature not implemented",
+    @ApiResponse(responseCode = "204", description = "Project and its monitoring data deleted", content = @Content)
+    @ApiResponse(responseCode = "404", description = "Project not found",
             content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
-    public void delete(@PathVariable @Positive long id) {
+    public ResponseEntity<Void> delete(@PathVariable @Positive long id) {
         service.delete(id);
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{id}/test-connection")
     @Operation(summary = "Test monitoring endpoint connection")
     @ApiResponse(responseCode = "200", description = "Connection check completed; inspect connectionStatus")
+    @ApiResponse(responseCode = "409", description = "Monitoring configuration changed during the check; retry",
+            content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
     @ApiResponse(responseCode = "404", description = "Project not found",
             content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
     public ConnectionTestResponse testConnection(@PathVariable @Positive long id) {

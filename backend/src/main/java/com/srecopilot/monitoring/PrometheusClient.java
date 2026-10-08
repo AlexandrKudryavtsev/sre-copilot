@@ -27,19 +27,21 @@ public class PrometheusClient {
     private final HttpClient client;
     private final MonitoringProperties properties;
     private final PrometheusTextValidator validator;
+    private final GoldenSignalsCalculator calculator;
     private final Clock clock;
 
     public PrometheusClient(HttpClient prometheusHttpClient, MonitoringProperties properties,
-            PrometheusTextValidator validator, Clock clock) {
+            PrometheusTextValidator validator, GoldenSignalsCalculator calculator, Clock clock) {
         this.client = prometheusHttpClient;
         this.properties = properties;
         this.validator = validator;
+        this.calculator = calculator;
         this.clock = clock;
     }
 
     public ConnectionProbeResult testConnection(String endpointUrl) {
         try {
-            fetch(endpointUrl);
+            calculator.read(fetch(endpointUrl));
             return ConnectionProbeResult.available();
         } catch (MetricCollectionException exception) {
             return ConnectionProbeResult.unavailable(exception.getMessage());

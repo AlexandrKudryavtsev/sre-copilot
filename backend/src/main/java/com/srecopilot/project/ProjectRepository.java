@@ -34,8 +34,11 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
     @Transactional
     @Query("""
             UPDATE Project p SET p.connectionStatus = :status, p.updatedAt = :checkedAt
-            WHERE p.id = :id AND p.userId = :userId
+            WHERE p.id = :id AND p.userId = :userId AND p.monitoringRevision = :revision
+                AND p.endpointUrl = :endpointUrl AND p.endpointType = :endpointType
             """)
     int updateConnectionStatus(@Param("id") long id, @Param("userId") long userId,
+            @Param("revision") long revision, @Param("endpointUrl") String endpointUrl,
+            @Param("endpointType") EndpointType endpointType,
             @Param("status") ConnectionStatus status, @Param("checkedAt") Instant checkedAt);
 }

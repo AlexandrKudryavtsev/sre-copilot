@@ -13,7 +13,7 @@ public class OpenApiConfig {
         return new OpenAPI().info(new Info()
                 .title("SRE Copilot — Monitoring Core")
                 .version("0.0.1")
-                .description("Projects, metrics, monitoring rules, automatic incident detection/recovery and incident reads are implemented. "
-                        + "Project editing/deletion return 501 until implemented."));
+                .description("Project CRUD, monitoring endpoint checks, metrics, monitoring rules, "
+                        + "automatic incident detection/recovery and incident reads are implemented."));
     }
 }

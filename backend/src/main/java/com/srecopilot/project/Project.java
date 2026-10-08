@@ -102,6 +102,20 @@ public class Project {
         return monitoringRevision;
     }
 
+    public boolean update(String name, String description, String endpointUrl, EndpointType endpointType) {
+        boolean sourceChanged = !this.endpointUrl.equals(endpointUrl) || this.endpointType != endpointType;
+        this.name = name;
+        this.description = description;
+        this.endpointUrl = endpointUrl;
+        this.endpointType = endpointType;
+        if (sourceChanged) {
+            connectionStatus = ConnectionStatus.UNKNOWN;
+            monitoringRevision++;
+        }
+        updatedAt = Instant.now();
+        return sourceChanged;
+    }
+
     public void setMonitoringEnabled(boolean enabled) {
         if (monitoringEnabled != enabled) {
             monitoringEnabled = enabled;

@@ -59,12 +59,12 @@ class ScaffoldIT {
 
     @Test
     void businessApiReturnsAnExplicitProblemResponse() throws Exception {
-        mvc.perform(delete("/api/projects/1"))
-                .andExpect(status().isNotImplemented())
+        mvc.perform(delete("/api/projects/{id}", Long.MAX_VALUE))
+                .andExpect(status().isNotFound())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
-                .andExpect(jsonPath("$.status").value(501))
-                .andExpect(jsonPath("$.title").value("Feature not implemented"))
-                .andExpect(jsonPath("$.instance").value("/api/projects/1"));
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.title").value("Project not found"))
+                .andExpect(jsonPath("$.instance").value("/api/projects/" + Long.MAX_VALUE));
     }
 
     @Test
@@ -96,6 +96,8 @@ class ScaffoldIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.info.title").value("SRE Copilot — Monitoring Core"))
                 .andExpect(jsonPath("$.paths['/api/projects']").exists())
+                .andExpect(jsonPath("$.paths['/api/projects/{id}'].put.responses['200']").exists())
+                .andExpect(jsonPath("$.paths['/api/projects/{id}'].delete.responses['204']").exists())
                 .andExpect(jsonPath("$.paths['/api/projects/{projectId}/rules']").exists());
         mvc.perform(get("/swagger-ui/index.html"))
                 .andExpect(status().isOk());

@@ -48,14 +48,6 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return problem;
     }
 
-    @ExceptionHandler(FeatureNotImplementedException.class)
-    ProblemDetail handleNotImplemented(FeatureNotImplementedException exception) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
-                HttpStatus.NOT_IMPLEMENTED, exception.getMessage());
-        problem.setTitle("Feature not implemented");
-        return problem;
-    }
-
     @Override
     protected ResponseEntity<Object> handleMethodArgumentNotValid(
             MethodArgumentNotValidException exception, HttpHeaders headers,

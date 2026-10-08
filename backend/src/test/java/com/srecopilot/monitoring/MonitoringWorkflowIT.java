@@ -3,6 +3,8 @@ package com.srecopilot.monitoring;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -107,6 +109,7 @@ class MonitoringWorkflowIT {
             respond(exchange, HTTP_STATUS.get(), BODY.get());
         });
         endpoint.createContext("/unavailable", exchange -> respond(exchange, 503, "unavailable\n"));
+        endpoint.createContext("/other-metrics", exchange -> respond(exchange, 200, BODY.get()));
         endpoint.start();
     }
 
@@ -305,6 +308,149 @@ class MonitoringWorkflowIT {
         mvc.perform(get("/api/projects/{id}/metrics/current", id))
                 .andExpect(jsonPath("$.traffic").value(10))
                 .andExpect(jsonPath("$.latency").value(100));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"url", "type"})
+    void endpointChangesRePrimeCountersAndResetRuleProgressWhileKeepingHistory(String field) throws Exception {
+        long id = create("/metrics", EndpointType.PROMETHEUS);
+        mvc.perform(post("/api/projects/{id}/rules", id).contentType(MediaType.APPLICATION_JSON).content("""
+                {"name":"Pending","metric":"SATURATION","operator":"GREATER_OR_EQUAL","threshold":80,
+                 "severity":"WARNING","checkIntervalSeconds":10,"consecutiveViolations":3,"enabled":true}
+                """)).andExpect(status().isCreated());
+        mvc.perform(post("/api/projects/{id}/rules", id).contentType(MediaType.APPLICATION_JSON).content("""
+                {"name":"Open","metric":"SATURATION","operator":"GREATER_OR_EQUAL","threshold":80,
+                 "severity":"CRITICAL","checkIntervalSeconds":10,"consecutiveViolations":1,"enabled":true}
+                """)).andExpect(status().isCreated());
+        enable(id, true);
+        collector.collect();
+        clock.advance();
+        BODY.set(metrics(200, 20, 20, 4, 0.9));
+        collector.collect();
+        mvc.perform(get("/api/projects/{id}/rules", id))
+                .andExpect(jsonPath("$[0].runtimeState.consecutiveViolations").value(1))
+                .andExpect(jsonPath("$[1].runtimeState.state").value("INCIDENT_OPEN"));
+        assertThat(snapshots.count()).isEqualTo(1);
+        mvc.perform(put("/api/projects/{id}", id).contentType(MediaType.APPLICATION_JSON).content("""
+                {"name":"Updated","endpointUrl":"%s","endpointType":"%s"}
+                """.formatted(url(field.equals("url") ? "/other-metrics" : "/metrics"),
+                        field.equals("type") ? "ACTUATOR" : "PROMETHEUS")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.connectionStatus").value("UNKNOWN"));
+        mvc.perform(get("/api/projects/{id}/rules", id))
+                .andExpect(jsonPath("$[0].runtimeState.consecutiveViolations").value(0))
+                .andExpect(jsonPath("$[0].runtimeState.state").value("HEALTHY"))
+                .andExpect(jsonPath("$[1].runtimeState.state").value("INCIDENT_OPEN"));
+        mvc.perform(get("/api/projects/{id}/incidents", id))
+                .andExpect(jsonPath("$.length()").value(1)).andExpect(jsonPath("$[0].status").value("OPEN"));
+        assertThat(snapshots.count()).isEqualTo(1);
+        clock.advance();
+        BODY.set(metrics(300, 30, 30, 6, 0.9));
+        collector.collect();
+        assertThat(snapshots.count()).isEqualTo(1);
+        clock.advance();
+        BODY.set(metrics(400, 40, 30, 6, 0.9));
+        collector.collect();
+        assertThat(snapshots.count()).isEqualTo(2);
+        mvc.perform(get("/api/projects/{id}/metrics/current", id)).andExpect(jsonPath("$.traffic").value(10));
+        mvc.perform(get("/api/projects/{id}/rules", id))
+                .andExpect(jsonPath("$[0].runtimeState.consecutiveViolations").value(1));
+        mvc.perform(get("/api/projects/{id}/incidents", id)).andExpect(jsonPath("$.length()").value(1));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"edit", "delete"})
+    void discardsScrapesAfterEditingOrDeletingTheProjectDuringHttp(String action) throws Exception {
+        long id = create("/metrics", EndpointType.PROMETHEUS);
+        enable(id, true);
+        collector.collect();
+        clock.advance();
+        BODY.set(metrics(200, 20, 20, 4, 0.25));
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        HOOK.set(() -> {
+            entered.countDown();
+            try {
+                if (!release.await(1, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("Collection was not released");
+                }
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(exception);
+            }
+        });
+        try (var worker = Executors.newVirtualThreadPerTaskExecutor()) {
+            var future = worker.submit(collector::collect);
+            try {
+                assertThat(entered.await(1, TimeUnit.SECONDS)).isTrue();
+                if (action.equals("delete")) {
+                    mvc.perform(delete("/api/projects/{id}", id)).andExpect(status().isNoContent());
+                } else {
+                    mvc.perform(put("/api/projects/{id}", id).contentType(MediaType.APPLICATION_JSON).content("""
+                            {"name":"Changed","endpointUrl":"%s","endpointType":"PROMETHEUS"}
+                            """.formatted(url("/other-metrics"))))
+                            .andExpect(status().isOk());
+                }
+            } finally {
+                release.countDown();
+            }
+            future.get(3, TimeUnit.SECONDS);
+        }
+        assertThat(snapshots.count()).isZero();
+        HOOK.set(() -> { });
+        if (action.equals("delete")) {
+            assertThat(projects.findById(id)).isEmpty();
+            collector.collect();
+            assertThat(REQUESTS.get()).isEqualTo(2);
+        } else {
+            assertThat(projects.findById(id).orElseThrow().getConnectionStatus()).isEqualTo(ConnectionStatus.UNKNOWN);
+            clock.advance();
+            collector.collect();
+            assertThat(snapshots.count()).isZero();
+            clock.advance();
+            BODY.set(metrics(300, 30, 30, 6, 0.25));
+            collector.collect();
+            assertThat(snapshots.count()).isEqualTo(1);
+        }
+    }
+
+    @Test
+    void deletingAProjectCascadesAllMonitoringDataWithoutAffectingOtherProjects() throws Exception {
+        long deleted = create("/metrics", EndpointType.PROMETHEUS);
+        long retained = create("/metrics", EndpointType.PROMETHEUS);
+        for (long id : new long[]{deleted, retained}) {
+            mvc.perform(post("/api/projects/{id}/rules", id).contentType(MediaType.APPLICATION_JSON).content("""
+                    {"name":"CPU","metric":"SATURATION","operator":"GREATER_OR_EQUAL","threshold":0,
+                     "severity":"WARNING","checkIntervalSeconds":10,"consecutiveViolations":1,"enabled":true}
+                    """)).andExpect(status().isCreated());
+            enable(id, true);
+        }
+        collector.collect();
+        clock.advance();
+        BODY.set(metrics(200, 20, 20, 4, 0.25));
+        collector.collect();
+        long rule = jdbc.queryForObject("SELECT id FROM monitoring_rules WHERE project_id = ?", Long.class, deleted);
+        long incident = jdbc.queryForObject("SELECT id FROM incidents WHERE project_id = ?", Long.class, deleted);
+        assertThat(jdbc.queryForObject("SELECT active_incident_id FROM monitoring_rule_states WHERE rule_id = ?",
+                Long.class, rule)).isEqualTo(incident);
+        mvc.perform(delete("/api/projects/{id}", deleted)).andExpect(status().isNoContent());
+        assertThat(projects.findById(deleted)).isEmpty();
+        assertThat(projects.findById(retained)).isPresent();
+        for (String table : new String[]{"metric_snapshots", "monitoring_rules", "incidents"}) {
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM " + table + " WHERE project_id = ?", Long.class, deleted))
+                    .as(table + " for deleted project").isZero();
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM " + table + " WHERE project_id = ?", Long.class, retained))
+                    .as(table + " for retained project").isEqualTo(1);
+        }
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM monitoring_rule_states WHERE rule_id = ?", Long.class, rule))
+                .isZero();
+        mvc.perform(get("/api/incidents/{id}", incident)).andExpect(status().isNotFound());
+        mvc.perform(get("/api/projects/{id}", deleted)).andExpect(status().isNotFound());
+        mvc.perform(delete("/api/projects/{id}", deleted)).andExpect(status().isNotFound());
+        clock.advance();
+        BODY.set(metrics(300, 30, 30, 6, 0.25));
+        collector.collect();
+        assertThat(snapshots.count()).isEqualTo(2);
+        assertThat(REQUESTS.get()).isEqualTo(5);
     }
 
     @Test
