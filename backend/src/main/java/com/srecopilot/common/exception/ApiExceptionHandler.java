@@ -1,6 +1,9 @@
 package com.srecopilot.common.exception;
 
 import com.srecopilot.project.ProjectNotFoundException;
+import com.srecopilot.rule.RuleNotFoundException;
+import com.srecopilot.rule.RuleHasOpenIncidentException;
+import com.srecopilot.incident.IncidentNotFoundException;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.HttpHeaders;
@@ -16,6 +19,27 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 
 @RestControllerAdvice
 public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
+
+    @ExceptionHandler(RuleNotFoundException.class)
+    ProblemDetail handleRuleNotFound(RuleNotFoundException exception) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage());
+        problem.setTitle("Monitoring rule not found");
+        return problem;
+    }
+
+    @ExceptionHandler(IncidentNotFoundException.class)
+    ProblemDetail handleIncidentNotFound(IncidentNotFoundException exception) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage());
+        problem.setTitle("Incident not found");
+        return problem;
+    }
+
+    @ExceptionHandler(RuleHasOpenIncidentException.class)
+    ProblemDetail handleRuleConflict(RuleHasOpenIncidentException exception) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, exception.getMessage());
+        problem.setTitle("Monitoring rule has an open incident");
+        return problem;
+    }
 
     @ExceptionHandler(ProjectNotFoundException.class)
     ProblemDetail handleProjectNotFound(ProjectNotFoundException exception) {

@@ -51,4 +51,17 @@ public class MetricSnapshot {
     public MetricDtos.MetricSnapshotResponse toResponse() {
         return new MetricDtos.MetricSnapshotResponse(id, projectId, timestamp, latency, traffic, errors, saturation);
     }
+
+    public Long getProjectId() { return projectId; }
+    public Instant getTimestamp() { return timestamp; }
+    public BigDecimal getTraffic() { return traffic; }
+
+    public BigDecimal value(MetricType metric) {
+        return switch (metric) {
+            case LATENCY -> latency;
+            case TRAFFIC -> traffic;
+            case ERRORS -> errors;
+            case SATURATION -> saturation;
+        };
+    }
 }

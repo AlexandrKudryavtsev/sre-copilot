@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -47,7 +48,7 @@ class ScaffoldIT {
                 "monitoring_rules", "monitoring_rule_states", "incidents");
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM flyway_schema_history WHERE success = true", Integer.class))
-                .isEqualTo(3);
+                .isEqualTo(4);
         mvc.perform(get("/actuator/health"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("UP"));
@@ -58,14 +59,12 @@ class ScaffoldIT {
 
     @Test
     void businessApiReturnsAnExplicitProblemResponse() throws Exception {
-        mvc.perform(get("/api/projects/1/rules"))
+        mvc.perform(delete("/api/projects/1"))
                 .andExpect(status().isNotImplemented())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.status").value(501))
                 .andExpect(jsonPath("$.title").value("Feature not implemented"))
-                .andExpect(jsonPath("$.instance").value("/api/projects/1/rules"));
-        mvc.perform(get("/api/projects/1/incidents").param("status", "OPEN"))
-                .andExpect(status().isNotImplemented());
+                .andExpect(jsonPath("$.instance").value("/api/projects/1"));
     }
 
     @Test

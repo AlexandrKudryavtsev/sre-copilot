@@ -99,4 +99,8 @@ curl -X POST http://localhost:8080/api/projects/<id>/test-connection
 Включите периодический сбор через `POST /api/projects/{id}/monitoring/enable`.
 После двух опросов snapshot доступен по `GET /api/projects/{id}/metrics/current`,
 история — по `GET /api/projects/{id}/metrics/history?from=...&to=...`.
-Rule Engine будет реализован отдельно.
+Правила создаются через `POST /api/projects/{id}/rules`. Для быстрого сценария
+подойдёт `SATURATION >= 80%`: профиль `overloaded` нарушает порог,
+`normal` восстанавливает сервис. Rule Engine открывает инцидент после указанного числа
+нарушений и закрывает после трёх здоровых проверок (настройка backend).
+Пример запросов — в [корневом README](../README.md#правила-и-инциденты).

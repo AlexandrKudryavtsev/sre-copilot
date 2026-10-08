@@ -6,6 +6,7 @@ import com.srecopilot.project.ProjectDtos.ConnectionTestResponse;
 import com.srecopilot.project.ProjectDtos.ProjectRequest;
 import com.srecopilot.project.ProjectDtos.ProjectResponse;
 import com.srecopilot.user.CurrentUserProvider;
+import com.srecopilot.rule.RuleEngine;
 import java.time.Instant;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -17,12 +18,14 @@ public class ProjectService {
     private final ProjectRepository repository;
     private final CurrentUserProvider currentUser;
     private final PrometheusClient prometheusClient;
+    private final RuleEngine ruleEngine;
 
     public ProjectService(ProjectRepository repository, CurrentUserProvider currentUser,
-            PrometheusClient prometheusClient) {
+            PrometheusClient prometheusClient, RuleEngine ruleEngine) {
         this.repository = repository;
         this.currentUser = currentUser;
         this.prometheusClient = prometheusClient;
+        this.ruleEngine = ruleEngine;
     }
 
     @Transactional(readOnly = true)
@@ -68,7 +71,10 @@ public class ProjectService {
     public ProjectResponse setMonitoringEnabled(long id, boolean enabled) {
         Project project = repository.findOwnedByIdForUpdate(id, currentUser.userId())
                 .orElseThrow(() -> new ProjectNotFoundException(id));
-        project.setMonitoringEnabled(enabled);
+        if (project.isMonitoringEnabled() != enabled) {
+            project.setMonitoringEnabled(enabled);
+            ruleEngine.resetProgress(id);
+        }
         return toResponse(project);
     }
 

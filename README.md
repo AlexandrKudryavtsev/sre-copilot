@@ -3,7 +3,8 @@
 Backend для [ТЗ](docs/TASK_WITHOUT_AI.md): Java 21, Spring Boot 4.1.1, Maven,
 PostgreSQL 17, Spring Data JPA, Flyway и Swagger/OpenAPI.
 Реализованы создание и чтение проектов, проверка подключения, включение мониторинга,
-периодический сбор Prometheus/Actuator-метрик и выдача текущих показателей/истории.
+периодический сбор Prometheus/Actuator-метрик, правила и автоматическое открытие/закрытие
+инцидентов. API возвращает текущие метрики, историю, правила и контекст инцидентов.
 
 ## Запуск через Docker Compose
 
@@ -84,6 +85,10 @@ health/readiness, API-заглушки, валидацию, Swagger и CORS. С�
 статуса подключения. Тесты мониторинга проверяют interval rates, сбросы счётчиков,
 изоляцию сбоев, историю, права доступа и выключение во время HTTP-запроса;
 отдельная проверка запускает настоящий scheduler. Unit-тесты проверяют парсинг samples и расчёты.
+Тесты Rule Engine проверяют интервалы, все показатели/операторы, последовательности
+нарушений/восстановлений, конкурентную обработку, сохранение контекста и транзакционный
+откат snapshot, состояния правила и инцидента при ошибке БД. Проверяется полный цикл
+HTTP endpoint → сборщик → Rule Engine → Incidents API.
 `./mvnw package` собирает JAR без запуска интеграционных тестов.
 
 ## Структура
@@ -100,8 +105,8 @@ backend/
     user/                   текущий локальный пользователь
     project/                entity, repository, controller, service, DTO, validation
     metric/                 snapshots, repository, controller, service, DTO, enums
-    rule/                   controller, service, DTO, enums
-    incident/               controller, service, DTO, enums
+    rule/                   правила, runtime state, Rule Engine, API
+    incident/               incidents, repository, controller, service, DTO, enums
     monitoring/             scheduler, сборщик, parser, Golden Signals, HTTP client
   src/main/resources/
     application.yaml
@@ -124,6 +129,8 @@ ID — `BIGINT`, время — `TIMESTAMPTZ`, длительность пров
 вместо пароля у локального пользователя записан маркер отключённого входа.
 Третья миграция добавляет внутреннюю ревизию мониторинга проекта для проверки результатов
 запросов, начатых до выключения/повторного включения мониторинга.
+Четвёртая миграция создаёт runtime state для существующих правил и связывает его
+с уже открытыми инцидентами. API новых правил создаёт правило и state в одной транзакции.
 
 ## API
 
@@ -147,8 +154,9 @@ timeout охватывает весь запрос, включая чтение 
 
 Несуществующий проект возвращает `404`; неверный запрос — `400` с `application/problem+json`.
 Чтение проектов/метрик, проверка и управление мониторингом ограничены проектами
-текущего локального пользователя. Изменение/удаление проекта, правила и инциденты
-возвращают `501 Not Implemented`; Rule Engine и аутентификация ещё не реализованы.
+текущего локального пользователя. API правил и инцидентов также проверяет владельца
+проекта. Изменение/удаление проекта возвращает `501 Not Implemented`; аутентификация
+ещё не реализована.
 
 | Метод | Путь | Состояние |
 |---|---|---|
@@ -159,12 +167,12 @@ timeout охватывает весь запрос, включая чтение 
 | POST | `/api/projects/{id}/monitoring/disable` | Реализован |
 | GET | `/api/projects/{projectId}/metrics/current` | 200; 204, если snapshots ещё нет |
 | GET | `/api/projects/{projectId}/metrics/history?from=...&to=...` | Реализован |
-| GET, POST | `/api/projects/{projectId}/rules` | 501 |
-| GET, PUT, DELETE | `/api/projects/{projectId}/rules/{ruleId}` | 501 |
-| POST | `/api/projects/{projectId}/rules/{ruleId}/enable` | 501 |
-| POST | `/api/projects/{projectId}/rules/{ruleId}/disable` | 501 |
-| GET | `/api/projects/{projectId}/incidents?status=OPEN&severity=CRITICAL` | 501 |
-| GET | `/api/incidents/{incidentId}` | 501 |
+| GET, POST | `/api/projects/{projectId}/rules` | GET 200; POST 201 + Location |
+| GET, PUT, DELETE | `/api/projects/{projectId}/rules/{ruleId}` | GET/PUT 200; DELETE 204 или 409 при открытом инциденте |
+| POST | `/api/projects/{projectId}/rules/{ruleId}/enable` | Реализован |
+| POST | `/api/projects/{projectId}/rules/{ruleId}/disable` | Реализован |
+| GET | `/api/projects/{projectId}/incidents?status=OPEN&severity=CRITICAL` | Реализован |
+| GET | `/api/incidents/{incidentId}` | Реализован |
 
 `from` и `to` — обязательные ISO-8601 timestamps, например `2026-10-06T13:00:00Z`.
 Параметры `status` и `severity` необязательные. Поле `checkIntervalSeconds`
@@ -242,7 +250,75 @@ snapshot не создаётся, проект становится `UNAVAILABLE
 его актуальность определяется по `timestamp` и состоянию проекта.
 
 Формат samples описан в [Prometheus exposition format](https://prometheus.io/docs/instrumenting/exposition_formats/).
-Rule Engine на этом этапе ещё не запускается.
+
+## Правила и инциденты
+
+Новое правило содержит `name`, `metric`, `operator`, `threshold`, `severity`,
+`checkIntervalSeconds`, `consecutiveViolations`, `enabled`. Обязательны все поля.
+Показатели: `LATENCY` (мс), `TRAFFIC` (req/s), `ERRORS`/`SATURATION` (%).
+Операторы: `GREATER_THAN`, `GREATER_OR_EQUAL`, `LESS_THAN`, `LESS_OR_EQUAL`.
+Severity: `WARNING`, `CRITICAL`; порог неотрицательный, интервал и число нарушений — от 1.
+
+Пример для проекта с `id = 1`, подключённого к demo-service:
+
+```sh
+curl -i -X POST http://localhost:8080/api/projects/1/rules \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"High CPU","metric":"SATURATION","operator":"GREATER_OR_EQUAL","threshold":80,"severity":"CRITICAL","checkIntervalSeconds":30,"consecutiveViolations":3,"enabled":true}'
+curl -X POST http://localhost:8080/api/projects/1/monitoring/enable
+curl -X POST http://localhost:8081/scenario \
+  -H 'Content-Type: application/json' -d '{"name":"overloaded"}'
+# После трёх нарушений правила:
+curl 'http://localhost:8080/api/projects/1/incidents?status=OPEN&severity=CRITICAL'
+curl http://localhost:8080/api/projects/1/rules
+# Восстановление: после трёх здоровых проверок инцидент станет RESOLVED.
+curl -X POST http://localhost:8081/scenario \
+  -H 'Content-Type: application/json' -d '{"name":"normal"}'
+curl 'http://localhost:8080/api/projects/1/incidents?status=RESOLVED'
+```
+
+Правила проверяются на новых snapshots. Первая проверка выполняется на следующем
+snapshot после создания/включения правила, последующие — когда прошло не менее
+`checkIntervalSeconds` с последней проверки. Если сбор идёт раз в 30 с, правило
+с интервалом 5 с всё равно проверяется только при поступлении нового snapshot.
+Повторные и более старые snapshots не увеличивают счётчики. История не переигрывается.
+
+`RuleResponse.runtimeState` показывает `state`, `consecutiveViolations`,
+`consecutiveRecoveries`, `activeIncidentId`, `lastCheckedAt`, `lastViolationAt`.
+Переходы: `HEALTHY → VIOLATING → INCIDENT_OPEN → HEALTHY`.
+Здоровая проверка до открытия сбрасывает нарушения. После N нарушений создаётся
+один `OPEN` incident; повторные нарушения сохраняют его. Для закрытия нужны
+`MONITORING_RECOVERY_CHECKS` последовательных здоровых проверок (по умолчанию 3).
+Новое нарушение во время восстановления сбрасывает счётчик восстановлений.
+После закрытия новое устойчивое нарушение может создать следующий инцидент.
+
+Snapshot, состояние правила и инцидент сохраняются в одной транзакции. Изменения
+блокируют проект, затем runtime state; частичный уникальный индекс дополнительно
+ограничивает число открытых инцидентов одним на правило. Подход к блокировкам
+соответствует [Spring Data JPA locking](https://docs.spring.io/spring-data/jpa/reference/jpa/locking.html).
+Состояние правил и активные инциденты хранятся в PostgreSQL.
+
+Инцидент сохраняет исходные metric/operator/threshold, severity, требуемое число
+нарушений и все четыре сигнала при обнаружении. `startedAt` — timestamp сработавшего
+snapshot; `resolvedAt` — timestamp последней требуемой здоровой проверки.
+Список возвращается по убыванию `startedAt`, затем id; фильтры status/severity
+могут применяться отдельно или вместе. Доступ к чужому правилу/инциденту возвращает `404`.
+
+Поведение при изменении настроек и пробелах в данных:
+
+- Редактирование правила сбрасывает незавершённые последовательности. Открытый
+  инцидент сохраняет исходное условие, по которому проверяется его восстановление;
+  новые настройки применяются к следующему инциденту. Интервал проверки берётся из текущего правила.
+- Отключение правила/мониторинга приостанавливает проверки и сбрасывает счётчики,
+  сохраняя открытый инцидент. Повторное включение требует новых последовательных проверок.
+- Сбой сбора или новая начальная точка счётчиков сбрасывают последовательности,
+  сохраняя открытые инциденты. Недоступность endpoint не считается здоровой проверкой.
+- При нулевом traffic значения latency/errors означают отсутствие наблюдений:
+  правила по ним пропускаются со сбросом последовательностей, открытый инцидент сохраняется.
+  Правила traffic/saturation продолжают проверяться.
+- Удаление правила с открытым инцидентом возвращает `409`. После восстановления
+  правило можно удалить: runtime state удалится, история инцидентов останется с `ruleId=null`
+  и сохранёнными параметрами срабатывания.
 
 ## Настройки
 
@@ -259,6 +335,6 @@ Rule Engine на этом этапе ещё не запускается.
 | `MONITORING_SCHEDULER_ENABLED` | `true` | Глобальное включение scheduler, независимо от флагов проектов |
 | `MONITORING_REQUEST_TIMEOUT` | `5s` | Timeout проверки endpoint, включая тело ответа |
 | `MONITORING_MAX_RESPONSE_BYTES` | `2097152` | Максимальный размер ответа endpoint в байтах |
-| `MONITORING_RECOVERY_CHECKS` | `3` | Будущее число последовательных восстановлений |
+| `MONITORING_RECOVERY_CHECKS` | `3` | Число последовательных здоровых проверок для закрытия инцидента |
 
 Настройки мониторинга типизированы и валидируются при запуске.

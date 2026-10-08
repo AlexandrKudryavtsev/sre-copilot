@@ -30,6 +30,11 @@ public final class RuleDtos {
             Long id, Long projectId, String name, MetricType metric,
             RuleOperator operator, BigDecimal threshold, Severity severity,
             int checkIntervalSeconds, int consecutiveViolations, boolean enabled,
-            Instant createdAt, Instant updatedAt) {
+            Instant createdAt, Instant updatedAt, RuleStateResponse runtimeState) {
+    }
+
+    public record RuleStateResponse(
+            RuleState state, int consecutiveViolations, int consecutiveRecoveries,
+            Long activeIncidentId, Instant lastCheckedAt, Instant lastViolationAt) {
     }
 }

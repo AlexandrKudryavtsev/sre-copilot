@@ -4,6 +4,7 @@ import com.srecopilot.metric.MetricSnapshot;
 import com.srecopilot.metric.MetricSnapshotRepository;
 import com.srecopilot.project.ConnectionStatus;
 import com.srecopilot.project.ProjectRepository;
+import com.srecopilot.rule.RuleEngine;
 import java.time.Instant;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
@@ -14,10 +15,12 @@ public class MetricCollectionStore {
 
     private final ProjectRepository projects;
     private final MetricSnapshotRepository snapshots;
+    private final RuleEngine ruleEngine;
 
-    public MetricCollectionStore(ProjectRepository projects, MetricSnapshotRepository snapshots) {
+    public MetricCollectionStore(ProjectRepository projects, MetricSnapshotRepository snapshots, RuleEngine ruleEngine) {
         this.projects = projects;
         this.snapshots = snapshots;
+        this.ruleEngine = ruleEngine;
     }
 
     @Transactional
@@ -38,7 +41,12 @@ public class MetricCollectionStore {
         }
         // The lock also serializes disable/re-enable with the short snapshot transaction.
         project.recordConnectionStatus(status, timestamp);
-        signals.ifPresent(value -> snapshots.save(new MetricSnapshot(projectId, timestamp, value)));
+        if (signals.isPresent()) {
+            MetricSnapshot snapshot = snapshots.save(new MetricSnapshot(projectId, timestamp, signals.get()));
+            ruleEngine.evaluate(snapshot);
+        } else {
+            ruleEngine.resetProgress(projectId);
+        }
         return true;
     }
 }

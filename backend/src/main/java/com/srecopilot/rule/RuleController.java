@@ -10,7 +10,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import java.util.List;
+import java.net.URI;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -23,7 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/projects/{projectId}/rules")
 @Tag(name = "Monitoring Rules")
-@ApiResponse(responseCode = "501", description = "Feature not implemented",
+@ApiResponse(responseCode = "404", description = "Project or rule not found",
         content = @Content(mediaType = "application/problem+json",
                 schema = @Schema(implementation = ProblemDetail.class)))
 public class RuleController {
@@ -42,9 +44,11 @@ public class RuleController {
 
     @PostMapping
     @Operation(summary = "Create monitoring rule")
-    public RuleResponse create(@PathVariable @Positive long projectId,
+    @ApiResponse(responseCode = "201", description = "Rule and its initial runtime state created")
+    public ResponseEntity<RuleResponse> create(@PathVariable @Positive long projectId,
             @Valid @RequestBody RuleRequest request) {
-        return service.create(projectId, request);
+        RuleResponse rule = service.create(projectId, request);
+        return ResponseEntity.created(URI.create("/api/projects/" + projectId + "/rules/" + rule.id())).body(rule);
     }
 
     @GetMapping("/{ruleId}")
@@ -63,8 +67,11 @@ public class RuleController {
 
     @DeleteMapping("/{ruleId}")
     @Operation(summary = "Delete monitoring rule")
-    public void delete(@PathVariable @Positive long projectId, @PathVariable @Positive long ruleId) {
+    @ApiResponse(responseCode = "204", description = "Rule deleted; incident history retained")
+    @ApiResponse(responseCode = "409", description = "Rule has an open incident")
+    public ResponseEntity<Void> delete(@PathVariable @Positive long projectId, @PathVariable @Positive long ruleId) {
         service.delete(projectId, ruleId);
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{ruleId}/enable")

@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @Tag(name = "Incidents")
-@ApiResponse(responseCode = "501", description = "Feature not implemented",
+@ApiResponse(responseCode = "404", description = "Project or incident not found",
         content = @Content(mediaType = "application/problem+json",
                 schema = @Schema(implementation = ProblemDetail.class)))
 public class IncidentController {

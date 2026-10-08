@@ -307,6 +307,32 @@ class MonitoringWorkflowIT {
                 .andExpect(jsonPath("$.latency").value(100));
     }
 
+    @Test
+    void realHttpCollectionOpensAndResolvesAnIncident() throws Exception {
+        long id = create("/metrics", EndpointType.PROMETHEUS);
+        mvc.perform(post("/api/projects/{id}/rules", id).contentType(MediaType.APPLICATION_JSON).content("""
+                {"name":"Latency","metric":"LATENCY","operator":"GREATER_OR_EQUAL","threshold":800,
+                 "severity":"CRITICAL","checkIntervalSeconds":10,"consecutiveViolations":2,"enabled":true}
+                """)).andExpect(status().isCreated());
+        enable(id, true);
+        collector.collect();
+        for (int i = 1; i <= 2; i++) {
+            BODY.set(metrics(100 + 20 * i, 10 + 20 * i, 10, 2, 0.25));
+            clock.advance();
+            collector.collect();
+        }
+        mvc.perform(get("/api/projects/{id}/incidents", id).param("status", "OPEN"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].latencyAtDetection").value(1000));
+        for (int i = 1; i <= 3; i++) {
+            BODY.set(metrics(140 + 20 * i, 50 + 1.6 * i, 10, 2, 0.25));
+            clock.advance();
+            collector.collect();
+        }
+        mvc.perform(get("/api/projects/{id}/incidents", id))
+                .andExpect(jsonPath("$.length()").value(1)).andExpect(jsonPath("$[0].status").value("RESOLVED"));
+    }
+
     private long create(String path, EndpointType type) throws Exception {
         String location = mvc.perform(post("/api/projects").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Monitored\",\"endpointUrl\":\"%s\",\"endpointType\":\"%s\"}".formatted(url(path), type)))
