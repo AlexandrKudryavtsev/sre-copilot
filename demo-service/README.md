@@ -103,4 +103,4 @@ curl -X POST http://localhost:8080/api/projects/<id>/test-connection
 подойдёт `SATURATION >= 80%`: профиль `overloaded` нарушает порог,
 `normal` восстанавливает сервис. Rule Engine открывает инцидент после указанного числа
 нарушений и закрывает после трёх здоровых проверок (настройка backend).
-Пример запросов — в [корневом README](../README.md#правила-и-инциденты).
+Пример запросов — в [корневом README](../README.md#проверка-через-demo-service).
