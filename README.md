@@ -13,12 +13,15 @@ Rules показывает прогресс проверок и открытый
 Полный сценарий открытия и восстановления на настоящем Actuator-сервисе проверен;
 результаты — в [отчёте приёмки](docs/ACCEPTANCE_REPORT.md).
 
+Пошаговая инструкция для ручного запуска и создания тестовых инцидентов —
+[MANUAL_TESTING.md](docs/MANUAL_TESTING.md).
+
 ## Запуск через Docker Compose
 
 Нужен Docker с Compose. Java и Maven на хосте не требуются.
 
 ```sh
-cp .env.example .env
+test -f .env || cp .env.example .env
 docker compose up --build -d --wait
 ```
 
