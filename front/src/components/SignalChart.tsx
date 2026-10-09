@@ -52,7 +52,6 @@ export function SignalChart({
   return (
     <ChartContainer
       className={small ? 'spark-chart' : 'metric-chart'}
-      config={{ value: { label: signal.name, color: signal.color } }}
       aria-label={`${signal.name} history in ${signal.unit}`}
     >
       <AreaChart

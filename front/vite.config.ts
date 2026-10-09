@@ -7,7 +7,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   return {
     plugins: [react()],
-    resolve: { alias: { '@': fileURLToPath(new URL('.', import.meta.url)) } },
+    resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
     css: { postcss: { plugins: [tailwindcss()] } },
     server: {
       host: '127.0.0.1',

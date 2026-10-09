@@ -134,7 +134,7 @@ export function App() {
           </div>
         )}
         <div className="sidebar-bottom">
-          <div className="mock-card">
+          <div className="workspace-card">
             <span>
               <Radio size={14} />
               Monitoring Core
