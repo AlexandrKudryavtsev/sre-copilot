@@ -24,7 +24,7 @@ export function RulesPage({ projectId }: { projectId: number }) {
     (signal: AbortSignal) => api.rules(projectId, signal),
     [projectId],
   );
-  const project = useResource(loadProject, 15_000);
+  const project = useResource(loadProject);
   const rules = useResource(loadRules, 15_000);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');

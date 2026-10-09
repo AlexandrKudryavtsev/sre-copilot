@@ -238,7 +238,7 @@ curl -X POST http://localhost:8080/api/projects/1/monitoring/disable
 ```
 
 Scheduler автоматически опрашивает включённые проекты. Между завершением цикла
-и началом следующего проходит `MONITORING_COLLECTION_INTERVAL` (по умолчанию 30 с).
+и началом следующего проходит `MONITORING_COLLECTION_INTERVAL` (по умолчанию 5 с).
 Проекты обрабатываются последовательно; циклы в одном процессе не пересекаются.
 Первый опрос задаёт начальные счётчики без snapshot, второй позволяет вычислить rates.
 Включение не выполняет HTTP-запрос внутри API; сбор начинается в следующем цикле.
@@ -359,7 +359,7 @@ snapshot; `resolvedAt` — timestamp последней требуемой зд�
 | `DEMO_SERVICE_PORT` | `8081` | Внешний порт тестового сервиса в Compose |
 | `DEMO_SCENARIO` | `normal` | Начальный сценарий тестового сервиса |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:5173,http://localhost:3000` | Разрешённые origins frontend |
-| `MONITORING_COLLECTION_INTERVAL` | `30s` | Пауза между циклами сбора, минимум 1 с |
+| `MONITORING_COLLECTION_INTERVAL` | `5s` | Пауза между циклами сбора, минимум 1 с |
 | `MONITORING_SCHEDULER_ENABLED` | `true` | Глобальное включение scheduler, независимо от флагов проектов |
 | `MONITORING_REQUEST_TIMEOUT` | `5s` | Timeout проверки endpoint, включая тело ответа |
 | `MONITORING_MAX_RESPONSE_BYTES` | `2097152` | Максимальный размер ответа endpoint в байтах |

@@ -55,9 +55,9 @@ export function OverviewPage({
     [projectId],
   );
   const project = useResource(loadProject, 15_000);
-  const current = useResource(loadCurrent, 15_000);
-  const history = useResource(loadHistory, 15_000);
-  const rules = useResource(loadRules, 30_000);
+  const current = useResource(loadCurrent, 5_000);
+  const history = useResource(loadHistory, 0, { refreshKey: current.data?.id });
+  const rules = useResource(loadRules);
   const incidents = useResource(loadIncidents, 15_000);
   const reload = () => {
     project.reload();
@@ -103,7 +103,7 @@ export function OverviewPage({
       ? 'Check the endpoint connection. Displayed measurements are from the last successful collection.'
       : !snapshot
         ? 'Rates need two successful collections. The first collection establishes a counter baseline.'
-        : 'Metrics are collected by the backend. This page refreshes every 15 seconds.';
+        : 'Metrics are collected by the backend. Current metrics refresh every 5 seconds. Charts update when a new snapshot arrives.';
   return (
     <>
       <div className="page-heading">

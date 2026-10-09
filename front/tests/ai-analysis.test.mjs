@@ -249,3 +249,75 @@ test('dispose clears pending polling timers', async (t) => {
   await flush();
   assert.equal(reads, 1);
 });
+
+test('pausing stops pending polling and resuming refreshes immediately', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let reads = 0;
+  const session = createAiAnalysisSession({
+    load: async () => result(++reads === 1 ? 'PENDING' : 'COMPLETED'),
+    retry: async () => result(),
+    onChange: () => {},
+  });
+  t.after(() => session.dispose());
+  session.refresh();
+  await flush();
+  session.pause();
+  t.mock.timers.tick(30_000);
+  await flush();
+  assert.equal(reads, 1);
+  session.resume();
+  await flush();
+  assert.equal(reads, 2);
+  session.pause();
+  session.resume();
+  t.mock.timers.tick(30_000);
+  await flush();
+  assert.equal(reads, 2);
+});
+
+test('a read finishing while paused does not restart polling', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const pending = deferred();
+  let reads = 0;
+  const session = createAiAnalysisSession({
+    load: () => {
+      reads++;
+      return pending.promise;
+    },
+    retry: async () => result(),
+    onChange: () => {},
+  });
+  t.after(() => session.dispose());
+  session.refresh();
+  session.pause();
+  pending.resolve(result());
+  await flush();
+  t.mock.timers.tick(30_000);
+  await flush();
+  assert.equal(reads, 1);
+  session.resume();
+  await flush();
+  assert.equal(reads, 2);
+});
+
+test('an initially hidden page defers the first read until resumed', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let reads = 0;
+  const session = createAiAnalysisSession({
+    load: async () => {
+      reads++;
+      return result('COMPLETED');
+    },
+    retry: async () => result(),
+    onChange: () => {},
+  });
+  t.after(() => session.dispose());
+  session.pause();
+  session.refresh();
+  t.mock.timers.tick(30_000);
+  await flush();
+  assert.equal(reads, 0);
+  session.resume();
+  await flush();
+  assert.equal(reads, 1);
+});

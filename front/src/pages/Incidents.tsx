@@ -14,7 +14,9 @@ import { Badge, ErrorNotice, Loading } from '../components/Feedback';
 import { AiAnalysisPanel } from '../components/AiAnalysisPanel';
 import { IncidentTable } from '../components/IncidentTable';
 import { SignalChart } from '../components/SignalChart';
-import type { Rule } from '../lib/types';
+import type { Incident, Rule } from '../lib/types';
+
+const isOpenIncident = (incident: Incident) => incident.status === 'OPEN';
 
 export function IncidentsPage({ projectId }: { projectId: number }) {
   const load = useCallback(
@@ -90,7 +92,7 @@ export function IncidentDetails({ incidentId }: { incidentId: number }) {
     (signal: AbortSignal) => api.incident(incidentId, signal),
     [incidentId],
   );
-  const incident = useResource(load, 15_000);
+  const incident = useResource(load, 15_000, { pollWhile: isOpenIncident });
   const value = incident.data;
   const [now, setNow] = useState(() => Date.now());
   const live = value?.status === 'OPEN';
@@ -114,7 +116,17 @@ export function IncidentDetails({ incidentId }: { incidentId: number }) {
     },
     [historyProjectId, startedAt],
   );
-  const history = useResource(loadHistory, 15_000);
+  const historyWindowEnd = startedAt ? Date.parse(startedAt) + 15 * 60_000 : 0;
+  const historyWindowOpen = !!startedAt && now < historyWindowEnd;
+  useEffect(() => {
+    if (!historyWindowOpen) return;
+    const timer = setTimeout(
+      () => setNow(Date.now()),
+      Math.max(0, historyWindowEnd - Date.now()),
+    );
+    return () => clearTimeout(timer);
+  }, [historyWindowEnd, historyWindowOpen]);
+  const history = useResource(loadHistory, historyWindowOpen ? 15_000 : 0);
   if (incident.loading) return <Loading text="Loading incident…" />;
   if (!value)
     return (

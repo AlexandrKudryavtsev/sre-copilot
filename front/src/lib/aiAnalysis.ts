@@ -19,12 +19,13 @@ export function createAiAnalysisSession({
 }) {
   let state: AiAnalysisState = { loading: true, retrying: false };
   let disposed = false;
+  let paused = false;
   let version = 0;
   let controller: AbortController | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   async function update(isRetry = false) {
-    if (disposed || state.retrying) return;
+    if (disposed || paused || state.retrying) return;
     const current = ++version;
     controller?.abort();
     clearTimeout(timer);
@@ -49,13 +50,23 @@ export function createAiAnalysisSession({
     }
     onChange(state);
     // Sequential polling only while PENDING, including recovery from a temporary read error.
-    if (state.analysis?.status === 'PENDING')
+    if (!paused && state.analysis?.status === 'PENDING')
       timer = setTimeout(() => void update(), 3_000);
   }
 
   return {
     refresh: () => void update(),
     retry: () => void update(true),
+    pause: () => {
+      paused = true;
+      clearTimeout(timer);
+    },
+    resume: () => {
+      if (disposed || !paused) return;
+      paused = false;
+      if (state.loading || state.error || state.analysis?.status === 'PENDING')
+        void update();
+    },
     dispose: () => {
       disposed = true;
       version++;

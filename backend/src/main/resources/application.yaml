@@ -47,7 +47,7 @@ app:
 
 monitoring:
   scheduler-enabled: ${MONITORING_SCHEDULER_ENABLED:true}
-  collection-interval: ${MONITORING_COLLECTION_INTERVAL:30s}
+  collection-interval: ${MONITORING_COLLECTION_INTERVAL:5s}
   request-timeout: ${MONITORING_REQUEST_TIMEOUT:5s}
   recovery-checks: ${MONITORING_RECOVERY_CHECKS:3}
   max-response-bytes: ${MONITORING_MAX_RESPONSE_BYTES:2097152}

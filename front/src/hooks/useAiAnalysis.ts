@@ -19,8 +19,15 @@ export function useAiAnalysis(incidentId: number) {
       onChange: (next) => setState({ ...next, incidentId }),
     });
     session.current = current;
+    const syncVisibility = () => {
+      if (document.hidden) current.pause();
+      else current.resume();
+    };
+    document.addEventListener('visibilitychange', syncVisibility);
+    syncVisibility();
     current.refresh();
     return () => {
+      document.removeEventListener('visibilitychange', syncVisibility);
       current.dispose();
       session.current = null;
     };

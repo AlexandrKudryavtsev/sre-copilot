@@ -29,7 +29,8 @@ export function App() {
     window.addEventListener('hashchange', sync);
     return () => window.removeEventListener('hashchange', sync);
   }, []);
-  const projects = useResource(api.projects, 30_000);
+  const isProjectsPage = route === '/' || route === '/projects';
+  const projects = useResource(api.projects, isProjectsPage ? 30_000 : 0);
   const projectRoute =
     /^\/projects\/(\d+)(?:\/(edit|incidents|rules)(?:\/(new|\d+\/edit))?)?$/.exec(
       route,
